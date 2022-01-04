@@ -231,7 +231,7 @@ Answer: Administrator.
 		- shell.gif
 		- tests.jsp
 
-		all 3 use .jsp, but it is obvious, which one is the right answer, just
+		At this point it is obvious which one is the right answer, just
 		by looking at the extensions.
 
 		answer: .jsp
