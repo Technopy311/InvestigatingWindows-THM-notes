@@ -1,0 +1,294 @@
+_____________________________________________
+
+Author: Technopy.
+Date: 2022-01-03.
+Finish Time of Writing: 23:59.
+_____________________________________________
+
+The room tells us to connect to the machine
+with RDP.
+
+Creds:
+Administrator:letmein123!
+
+Notes:
+	- I can see, that passed a certain time has passed, a mimikatz.exe (C:\TMP\mim.exe) 
+	  executes, and this repeats. So im thinking about a mimikatz backdoor or similar.
+
+
+Questions:
+
+- Whats the version and year of the windows machine?
+	Time to use the "systeminfo" command in CMD.
+	it is: Microsoft Windows Server 2016 Datacenter
+answer: Windows Server 2016.
+
+
+- Which user logged in last?
+	I answered this question using logic
+Answer: Administrator.
+
+
+- When did John log onto the system last?
+	(Answer format: MM/DD/YYYY H:MM:SS AM/PM)
+
+	Time to use the "Event Viewer"
+	I didnt find anything with it, too much info and slow machine
+	so it wasn't good.
+	The hint tells me to use cmd to acomplish this task, 
+	time to do searching, i searched "how to know the last login of a user in windows"
+
+	One of the first articles is this one: 
+	https://www.windows-commandline.com/last-logon-time-of-user/
+
+	The command to use is this one:
+	"net user  username | findstr /B /C:"Last logon"
+
+	in this case, the command to apply would be
+	"net user  John | findstr /B /C:"Last logon"
+	time to test...
+
+	... It workz!
+
+	answer:  03/02/2019 5:48:32 PM
+
+
+- What IP does the system connect to when it first starts?
+	When we login, we can see a cmd loading and printing some stuff, and an ip address, 
+	it was fast, but i had enough time to see the route of the execution binary/program.
+	it is at "C:/TMP/". Since i cant find the binary right now, ill check the tasks automation and scheduler 
+	tool (i dont remember the official name), now i checked, it's called 
+	"Task Scheduler", I wasnt that far from the answer, xdd.
+
+	I did not found a way to retry this one, without thinking about rebooting the machine
+	so i just googled for a writeup.
+
+	Answer: 10.34.2.3
+
+	Looking for another writeup, you can just go to the registry editor
+	and using this route:
+		HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run
+
+	I found this task:
+		"C:\TMP\p.exe -s \\10.34.2.3 'net user' > C:\TMP\o2.txt"
+
+
+- What two accounts had administrative privileges (other than the Administrator user)?
+(Answer format: username1, username2)
+	For this one, I used the  lusrmgr.msc (Local Users And Groups manager)
+	Looking at the Administrator group, we see the following users:
+	- Administrator
+	- Guest
+	- Jenny
+
+	So the answer is: Jenny,Guest
+
+
+- Whats the name of the scheduled task that is malicous.
+	Time to look again to the "Task Scheduler".
+	Looking into the "Task Scheduler Library"
+	we see a few tasks.
+
+	Looking at the "Actions tab of each task",
+	there are 2 of them that are suspicious:
+		- "Clean file system" which executes "C:\TMP\nc.ps1 -l 1348"
+		- "GameOver" which executes "C:\TMP\mim.exe sekurlsa::LogonPasswords > C:\TMP\o.txt"
+
+		The first one, executes a powershell version of netcat (nc), and sets a listener
+		at the port 1348, it executes at 4:55 PM every day.
+
+		And the second one, executes mimikatz and using the "sekurlsa" module 
+		extracts the login passwords of each user in the machine, then
+		all the output of the program, is saved to "o.txt",
+		it executes every 5 minutes.
+
+	Both tasks are malicious, but the first one, is the one we are searching for
+	we know that by seeing at the answer format in tryhackme.
+
+	Answer: Clean file system.
+
+
+- What file was the task trying to run daily?
+	We know this one from the last question.
+
+	Answer: nc.ps1
+
+
+- What port did this file listen locally for?
+	We know this one from the netcat command.
+
+	Answer: 1348
+
+
+- When did Jenny last logon?
+	time to use cmd again
+	to be specific: "net user jenny"
+
+	Looking at the output, I see.
+	"Last logon               Never"
+
+	Answer: Never
+
+
+- At what date did the compromise take place?
+(Answer format: MM/DD/YYYY)
+	
+	Time to do heavy forensics analysis using the event
+	logs or officially called "Event Viewer".
+
+	I searched looooong time in the "Event Viewer", and nothing
+	so ill be honest, I used a writeup.
+	The easiest way, is to look at the creation time
+	of the automation tasks we found in the previous tasks
+	(Clean file system and GameOver).
+
+	answer: 03/02/2019
+
+
+- At what time did Windows first assign special privileges to a new logon?
+(Answer format: MM/DD/YYYY HH:MM:SS AM/PM)
+
+	I think I must use the "Event Viewer" this time,
+	hope it works... I hope...
+
+	The hope did work.
+
+	So.. By using the hint, i went to the 
+	"Security logs", under "Windows Logs" folder of the "Event Viewer"
+	and then i filtered like this:
+
+		I first set up a range of time
+		from: 01/01/2019 12:00:49 PM
+		to: 12/31/2019 12:00:49 PM
+
+	I dont know why, but i still had 
+	results of time diferent than 
+	12:00:49 PM, but meh.
+
+	Then i checked every "Event Level".
+
+	Checked the "<All Event Sources>" of the Event Sources selector.
+
+	and left as default the other fields.
+
+	then hit ok, and went to scroll throught all the logs.
+
+	I started noticing that there were almost no logs
+	whit the seconds field like 49 (12:00:49)
+
+	so i just scrolled, and searched for the first log that 
+	had that timing.
+
+	Answer: 03/02/2019 4:04:49 PM
+
+
+- What tool was used to get Windows passwords?
+	While searching at the "C:\TMP\" directory, 
+	i looked at the "mim.exe" and the "mim-out.txt"
+	files, so i when i looked at the .txt file
+	i could clearly see that it was the popular
+	Post-Exploitation tool, mimikatz.
+
+	Answer: mimikatz
+
+
+- What was the attackers external control and command servers IP?
+	I think ill have to check either to the firewall, or the files under "C:\TMP"
+	easier thing first, files.
+
+	I already checked the files, the only kindoff
+	interesting ones are "schtasks-backdoor.ps1"
+	and "WMIBackdoor.ps1", i used cyberchef with the
+	"Extract Ip addresses" function, and the first 
+	program did not have any ip address set, and the second one
+	only example ones, like "8.8.8.8" or "127.0.0.1"
+	Until there, nothing useful, but we may search for those names 
+	in the firewall log, maybe it's helpful.
+
+	Ok, I have no idea of this one, time to check writeup.
+	The writeup tells me to check 
+	the equivalent of "/etc/hosts" in windows, which is
+	"c:\Windows\System32\Drivers\etc\hosts"
+
+	Time to check.
+
+	By looking at the file with notepad
+	we see that the only ones that are sus, are 
+	"google.com" and "www.google.com", virustotal
+	is sus too, until I saw that it points to localhost,
+	so the answer is: 76.32.97.132
+
+
+
+- What was the extension name of the shell uploaded via the servers website?
+	Writeup time.
+
+	The writeup tells me to check the "C:\inetpub\wwwroot\" route,
+	because this route is the common route for webapps
+	running in windows, time to check.
+	There are 3 files:
+		- b.jsp
+		- shell.gif
+		- tests.jsp
+
+		all 3 use .jsp, but it is obvious, which one is the right answer, just
+		by looking at the extensions.
+
+		answer: .jsp
+
+
+- What was the last port the attacker opened?
+	Im thinking that this one, is the one used by netcat
+	("C:\TMP\nc.ps1 -l 1348")
+
+	Answer: Is not 1348.
+
+	Time to check the firewall's inbound rules.
+
+	Happens to be that the first rule, is the one, 
+	and giving it a closer look, it is very sus, why?
+
+		Profile: Public.
+		Enabled: Yes.
+		Action: Allow.
+		Override: No.
+		Program: Any.
+		Local Address: Any.
+		Remote Address: Any.
+		Protocol: TCP.
+		Local Port: 1337.
+		Remote Port: Any.
+		and all the other configurations left, are set as "Any" too.
+
+		What do i want to say?
+		Im trying to explain, that those are too open rules, for just 1 specific port.
+
+		Answer: 1337
+
+
+- Check for DNS poisoning, what site was targeted?
+
+	This time, instead of going again to the writeups, ill go 
+	and search for "dns " .....
+
+	I just remembered, the "c:\Windows\System32\Drivers\etc\hosts" 
+	file was changed, and that file, is like a local dns, because the machine
+	checks to that file, before checking any DNS server, to check if the
+	url that it needs to know the correspondant IP Address is there, 
+	so if we remember or check the file, the sus "definitions" were
+	"www.google.com" and "google.com".
+
+	By looking the answer format in the thm task, we dont see 3 dots
+	just 2 dots, so the poisoned site will probably be: google.com.
+
+	Time to test....
+	
+
+	....And YEEEESSS. 
+
+	Room completed, and the answer is in fact:
+		google.com
+
+
+
+SHEEEEEEEEEEEEEEEEEEEEEEESH
